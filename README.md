@@ -29,10 +29,10 @@ let HostInQuestion = "npt-ws01";
 
 ## Steps Taken
 
-### 1. The Logon
+### 1. The Logon(Authentication events; recognising the suspicious logon.)
 **objective:** To find the account the attacker actually succeeded with(not Mark's account).
 
-**KQL Used:**
+**KQL Query Used to locate event:**
 ```kql
 DeviceLogonEvents
 | where TimeGenerated between (start_time .. end_time)
@@ -43,62 +43,56 @@ DeviceLogonEvents
 
 **Result:** : The "HelpDesk" account was used.
 
-### 2. Searched the `DeviceProcessEvents` Table
+### 2. The Source(Linking a logon to the external source address.)
+**objective:** To find the external IP address the attacker authenticated from
 
-Searched for any `ProcessCommandLine` that contained the string "tor-browser-windows-x86_64-portable-14.0.1.exe". Based on the logs returned, at `2024-11-08T22:16:47.4484567Z`, an employee on the "threat-hunt-lab" device ran the file `tor-browser-windows-x86_64-portable-14.0.1.exe` from their Downloads folder, using a command that triggered a silent installation.
-
-**Query used to locate event:**
-
+**KQL Query used to locate event:**
 ```kql
-
-DeviceProcessEvents  
-| where DeviceName == "threat-hunt-lab"  
-| where ProcessCommandLine contains "tor-browser-windows-x86_64-portable-14.0.1.exe"  
-| project Timestamp, DeviceName, AccountName, ActionType, FileName, FolderPath, SHA256, ProcessCommandLine
+DeviceLogonEvents
+| where TimeGenerated between (start_time .. end_time)
+| where DeviceName == HostInQuestion
+| where ActionType == "LogonSuccess"
+| project TimeGenerated, DeviceName, ActionType, AccountName, RemoteIP
 ```
-<img width="1212" alt="image" src="https://github.com/user-attachments/assets/b07ac4b4-9cb3-4834-8fac-9f5f29709d78">
+<img src="https://i.imgur.com/khXRd7i.png" alt="Geo Map Result" width="80%">
 
----
+**Result:** `20.110.92.50` is the external IP address used by the attacker
 
-### 3. Searched the `DeviceProcessEvents` Table for TOR Browser Execution
 
-Searched for any indication that user "employee" actually opened the TOR browser. There was evidence that they did open it at `2024-11-08T22:17:21.6357935Z`. There were several other instances of `firefox.exe` (TOR) as well as `tor.exe` spawned afterwards.
+### 3. The Process(Knowing the Process execution and command-line analysis)
+**objective:** To find the command line that launched the implant
 
 **Query used to locate events:**
-
 ```kql
-DeviceProcessEvents  
-| where DeviceName == "threat-hunt-lab"  
-| where FileName has_any ("tor.exe", "firefox.exe", "tor-browser.exe")  
-| project Timestamp, DeviceName, AccountName, ActionType, FileName, FolderPath, SHA256, ProcessCommandLine  
-| order by Timestamp desc
+DeviceProcessEvents
+| where TimeGenerated between (start_time .. end_time)
+| where DeviceName == HostInQuestion
+| where AccountName =="helpdesk"
+| project TimeGenerated, DeviceName, ActionType, FileName, ProcessCommandLine, InitiatingProcessCommandLine
 ```
-<img width="1212" alt="image" src="https://github.com/user-attachments/assets/b13707ae-8c2d-4081-a381-2b521d3a0d8f">
+<img src="https://i.imgur.com/Bxb4RyR.png" alt="Geo Map Result" width="80%">
 
----
+**Result:** cmd.exe /Q /c start "" "C:\Windows\Temp\WindowsUpdate.exe" is the command line used to launch the implant
 
-### 4. Searched the `DeviceNetworkEvents` Table for TOR Network Connections
-
-Searched for any indication the TOR browser was used to establish a connection using any of the known TOR ports. At `2024-11-08T22:18:01.1246358Z`, an employee on the "threat-hunt-lab" device successfully established a connection to the remote IP address `176.198.159.33` on port `9001`. The connection was initiated by the process `tor.exe`, located in the folder `c:\users\employee\desktop\tor browser\browser\torbrowser\tor\tor.exe`. There were a couple of other connections to sites over port `443`.
+### 4. The Tree(Parent-child process relationships; reconstructing the chain)
+**objective:** To Identify the immediate parent process that spawned that cmd.exe. This is what confirms remote WMI execution rather than a local user.
 
 **Query used to locate events:**
-
 ```kql
-DeviceNetworkEvents  
-| where DeviceName == "threat-hunt-lab"  
-| where InitiatingProcessAccountName != "system"  
-| where InitiatingProcessFileName in ("tor.exe", "firefox.exe")  
-| where RemotePort in ("9001", "9030", "9040", "9050", "9051", "9150", "80", "443")  
-| project Timestamp, DeviceName, InitiatingProcessAccountName, ActionType, RemoteIP, RemotePort, RemoteUrl, InitiatingProcessFileName, InitiatingProcessFolderPath  
-| order by Timestamp desc
+DeviceProcessEvents
+| where TimeGenerated between (start_time .. end_time)
+| where DeviceName == HostInQuestion
+| where AccountName =="helpdesk"
+| project TimeGenerated, DeviceName, ActionType, FileName, ProcessCommandLine, InitiatingProcessCommandLine, InitiatingProcessFileName
 ```
-<img width="1212" alt="image" src="https://github.com/user-attachments/assets/87a02b5b-7d12-4f53-9255-f5e750d0e3cb">
+<img src="https://i.imgur.com/iivW2rL.png" alt="Geo Map Result" width="80%">
+<img src="https://i.imgur.com/iV8Nf5g.png" alt="Geo Map Result" width="80%">
 
----
 
+**Result:** The process that spawned the cmd.exe file is "wmiprvse.exe".
 ## Chronological Event Timeline 
 
-### 1. File Download - TOR Installer
+### 5. File Download - TOR Installer
 
 - **Timestamp:** `2024-11-08T22:14:48.6065231Z`
 - **Event:** The user "employee" downloaded a file named `tor-browser-windows-x86_64-portable-14.0.1.exe` to the Downloads folder.
