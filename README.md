@@ -1,9 +1,4 @@
-# Threat-Hunting-Scenario-Help-Desk-Ticket-#4451
-# Official [Cyber Range](http://joshmadakor.tech/cyber-range) Project
-
-
-# Threat Hunt Report: Help-Desk-Ticket-#4451
-- [Scenario Creation](https://github.com/joshmadakor0/threat-hunting-scenario-tor/blob/main/threat-hunting-scenario-tor-event-creation.md)
+# Help Desk Ticket #4451 – Capture the Flag (CTF) Investigation
 
 ## Platforms and Languages Leveraged
 - Windows 10 Virtual Machines (Microsoft Azure)
@@ -12,36 +7,41 @@
 
 ##  Scenario
 
-Management suspects that some employees may be using TOR browsers to bypass network security controls because recent network logs show unusual encrypted traffic patterns and connections to known TOR entry nodes. Additionally, there have been anonymous reports of employees discussing ways to access restricted sites during work hours. The goal is to detect any TOR usage and analyze related security incidents to mitigate potential risks. If any use of TOR is found, notify management.
+A help desk ticket was received from an employee in the Finance department reporting that unexpected prompts kept appearing on his computer while he was working. The employee stated that he ignored the prompts because he assumed everything was fine but requested that IT investigate the issue. Upon reviewing the screenshot provided, the IT team noticed a Remote Desktop Connection notification indicating that another user, m.smith, was attempting to connect to his computer. The employee confirmed that he did not initiate or expect any remote connection. The goal is to investigate the suspicious Remote Desktop activity, determine who attempted to access the employee's workstation, establish whether unauthorized access was successful, and identify any related suspicious login attempts, process executions, file access, or network connections. If unauthorized access is confirmed, determine the extent of the compromise, take appropriate containment measures, and notify management.
 
-### High-Level TOR-Related IoC Discovery Plan
+![Geo Map](https://i.imgur.com/dbKVWgP.png)
 
-- **Check `DeviceFileEvents`** for any `tor(.exe)` or `firefox(.exe)` file events.
-- **Check `DeviceProcessEvents`** for any signs of installation or usage.
-- **Check `DeviceNetworkEvents`** for any signs of outgoing connections over known TOR ports.
+## Incident Details
+- **Received:** 22 April 2026, 09:14 UTC
+- **Employee:** Mark Smith, Finance
+- **Affected machine:** NPT-WS01
+- **Focus window:** 22 April 2026, 04:30 to 06:00 UTC.
+- **Target host:** npt-ws01
 
----
+
+### KQL Query to define the investigation scope.
+This was ran at the beginning of every query
+```Kql
+let start_time = datetime(2026-04-21T00:00:00.00Z);
+let end_time = datetime(2026-04-23T00:00:00.00Z);
+let HostInQuestion = "npt-ws01";
+```
 
 ## Steps Taken
 
-### 1. Searched the `DeviceFileEvents` Table
+### 1. The Logon
+**objective:** To find the account the attacker actually succeeded with(not Mark's account).
 
-Searched for any file that had the string "tor" in it and discovered what looks like the user "employee" downloaded a TOR installer, did something that resulted in many TOR-related files being copied to the desktop, and the creation of a file called `tor-shopping-list.txt` on the desktop at `2024-11-08T22:27:19.7259964Z`. These events began at `2024-11-08T22:14:48.6065231Z`.
-
-**Query used to locate events:**
-
+**KQL Used:**
 ```kql
-DeviceFileEvents  
-| where DeviceName == "threat-hunt-lab"  
-| where InitiatingProcessAccountName == "employee"  
-| where FileName contains "tor"  
-| where Timestamp >= datetime(2024-11-08T22:14:48.6065231Z)  
-| order by Timestamp desc  
-| project Timestamp, DeviceName, ActionType, FileName, FolderPath, SHA256, Account = InitiatingProcessAccountName
-```
-<img width="1212" alt="image" src="https://github.com/user-attachments/assets/71402e84-8767-44f8-908c-1805be31122d">
+DeviceLogonEvents
+| where TimeGenerated between (start_time .. end_time)
+| where DeviceName == HostInQuestion  
 
----
+```
+<img src="https://i.imgur.com/7SG2a2Q.png" alt="Geo Map Result" width="80%">
+
+**Result:** : The "HelpDesk" account was used.
 
 ### 2. Searched the `DeviceProcessEvents` Table
 
