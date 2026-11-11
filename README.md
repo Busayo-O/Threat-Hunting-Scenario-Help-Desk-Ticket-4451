@@ -157,8 +157,43 @@ DeviceProcessEvents
 
 **Result:** The "windowsHealthSvc" is the name of the Window service attacker installed
 
-### 10. 
+### 10. The Account (Local account creation and privilege escalation)- The hacker got into the system and created another account and had it elevated to admin priviledges.
+**Objective:** To find the backdoor local user account the attacker created and then promoted to Administrators.
+```Kql
+DeviceProcessEvents
+| where Timestamp  between (start_time .. end_time)
+| where DeviceName == HostInQuestion
+| where ProcessCommandLine contains "net user"
+| project Timestamp, ActionType, FileName, ProcessCommandLine
+```
+<img src="https://i.imgur.com/VbOQqwA.png" alt="Geo Map Result" width="80%">
 
+**Result:** The "nexus_admin" admin privileges was the backdoor local account created.
+
+### 11. The Endpoint(Scoping an investigation across multiple hosts)
+**Objective:** The attacker did not stay on a box, To Find the second host the attacker moved toward, so containment can be extended to it. First query is to list all npt and second query is to know which npt- raised alerts which will lead to the second host attacked by the attacker.
+```Kql
+DeviceInfo
+| where DeviceName starts with "npt-"
+| distinct DeviceName
+| sort by DeviceName asc
+```
+
+<img src="https://i.imgur.com/P2B5kCB.png" alt="Geo Map Result" width="80%">
+
+**Result:** It listed all npt in the windows
+
+```Kql2
+AlertInfo
+| join AlertEvidence on AlertId
+| where DeviceName starts with "npt-"
+| Project DeviceName, Title, AlertId
+| sort by DeviceName asc
+```
+
+<img src="https://i.imgur.com/Supf5K5.png" alt="Geo Map Result" width="80%">
+
+**Result:** This showed the npt- hosts that raised an alert
 
 
 
