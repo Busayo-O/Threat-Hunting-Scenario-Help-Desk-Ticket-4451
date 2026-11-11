@@ -144,9 +144,20 @@ DeviceProcessEvents
 
 **Result:** The "goggleupdatertask" in schtasks  "/create /tn GoogleUpdaterTask /tr C:\Windows\Temp\WindowsUpdate.exe" is the scheduled task created
 
-### 9. 
+### 9. The Service-Service-based persistence.(using a service running already in the computer to persist access.so if a service was deleted, it gets to be re-created
+**Objective:** To Find the name of the Windows service the attacker installed to run the implant.
+```Kql
+DeviceProcessEvents
+| where Timestamp  between (start_time .. end_time)
+| where DeviceName == HostInQuestion
+| where ProcessCommandLine contains "sc.exe create"
+| project Timestamp, ActionType, FileName, ProcessCommandLine
+```
+<img src="https://i.imgur.com/rBVw9vP.png" alt="Geo Map Result" width="80%">
 
+**Result:** The "windowsHealthSvc" is the name of the Window service attacker installed
 
+### 10. 
 
 
 
