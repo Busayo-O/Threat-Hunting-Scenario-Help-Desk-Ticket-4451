@@ -88,11 +88,68 @@ DeviceProcessEvents
 <img src="https://i.imgur.com/iivW2rL.png" alt="Geo Map Result" width="80%">
 <img src="https://i.imgur.com/iV8Nf5g.png" alt="Geo Map Result" width="80%">
 
-
 **Result:** The process that spawned the cmd.exe file is "wmiprvse.exe".
-## Chronological Event Timeline 
 
-### 5. File Download - TOR Installer
+### 5. File Download - The Connection(Looking for the domain Mark's computer is talking to)
+**objective:** To find the command-and-control(server out on the internet that issues command to compromise computers out on the internet) domain the host beaconed to. (This folds the old Connection and DNS stages into one — the network event and the DNS lookup resolve to the same artifact.)
+```Kql
+DeviceNetworkEvents
+| where TimeGenerated between (start_time .. end_time)
+| where DeviceName == HostInQuestion
+| where InitiatingProcessAccountName == "helpdesk"
+| project TimeGenerated, DeviceName, ActionType, RemoteUrl, InitiatingProcessCommandLine, InitiatingProcessFileName
+```
+<img src="https://i.imgur.com/hkaDvY6.png" alt="Geo Map Result" width="80%">
+
+**Result:** The connection is "updates.abordasync.website
+
+### 6. The File- File drops in staging locations; network-delivered file attribution.(the compromised host becaconed out to hackers, the hacker responds back to have a file downloaded by the compromised host, thereby downloading a malware
+**objective:** To find the SHA256 (hash) of the dropped implant. 
+**Query used to locate events:**
+```kql
+DeviceFileEvents
+| where TimeGenerated between (start_time .. end_time)
+| where DeviceName == HostInQuestion
+| where FolderPath has "WindowsUpdate.exe"
+| project TimeGenerated, DeviceName, ActionType, FileName, FolderPath, SHA256
+```
+<img src="https://i.imgur.com/fT4NtEA.png" alt="Geo Map Result" width="80%">
+
+**Result:** The "SHA256" file is 20cef6a013953890f9d38605d25d60dd63b42b09946bbb18ddb4a456da306e77
+
+### 7. The Key (Registry Run-key persistence)
+**objective:** To find the name of the Run-key value the attacker created for autostart persistence
+```Kql
+DeviceRegistryEvents
+| where Timestamp  between (start_time .. end_time)
+| where DeviceName == HostInQuestion
+| where RegistryKey contains "run"
+| where isnotempty(RegistryValueName)
+| project TimeGenerated, DeviceName, ActionType, RegistryKey, RegistryValueName, RegistryValueData
+```
+<img src="https://i.imgur.com/ZyP8XqR.png" alt="Geo Map Result" width="80%">
+
+**Result:** The "WindowsHealthCheck" is the name of the Run-Key value the attacker created
+
+### 8. The Task (Scheduled-task persistence)-making a task in windows to make some execution at given intervals when the computer is turned on
+**objective:** To  Find the name of the scheduled task created for persistence
+```Kql
+DeviceProcessEvents
+| where Timestamp  between (start_time .. end_time)
+| where DeviceName == HostInQuestion
+| where ProcessCommandLine contains "tn"
+| project TimeGenerated, DeviceName, ActionType, FileName, ProcessCommandLine
+```
+<img src="https://i.imgur.com/lR4H0lZ.png" alt="Geo Map Result" width="80%">
+
+**Result:** The "goggleupdatertask" in schtasks  "/create /tn GoogleUpdaterTask /tr C:\Windows\Temp\WindowsUpdate.exe" is the scheduled task created
+
+### 9. 
+
+
+
+
+
 
 - **Timestamp:** `2024-11-08T22:14:48.6065231Z`
 - **Event:** The user "employee" downloaded a file named `tor-browser-windows-x86_64-portable-14.0.1.exe` to the Downloads folder.
